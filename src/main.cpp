@@ -8,6 +8,7 @@
 #include <chrono>
 #include <ctime>
 
+//List of all HID keycodes:
 //https://gist.github.com/ekaitz-zarraga/2b25b94b711684ba4e969e5a5723969b
 // BleKeyboard bleKeyboard("ESP32 KB - M", "Espressif", 100);
 BleKeyboard bleKeyboard("BT Keyboard", "Espressif", 100);
@@ -16,6 +17,7 @@ extern const char* ssid;
 extern const char* password;
 extern const char* server;
 extern int port;
+bool btConnection = false;
 
 enum OS { Windows, Mac};
 
@@ -30,6 +32,10 @@ const uint8_t get_gui_key(){
         return KEY_LEFT_CTRL;
     }
 }
+
+const uint8_t SHIFT = 0x80;
+const uint8_t KEY_A = 0x61;
+const uint8_t KEY_L = 0x6c;
 
 //#TODO: Sync esp32 datetime with ntp server to get real time
 
@@ -117,6 +123,7 @@ void setup() {
     bleKeyboard.begin();
 }
 
+
 void loop() {
     WiFiClient client;
     if (client.connect(server, 80)) {
@@ -176,25 +183,84 @@ void loop() {
                                 // Give mac a sec to load up teams
                                 delay(700);
                                 bleKeyboard.write(KEY_RETURN);
-                            } else if(content == "del"){
+                            } else if(content == "test1"){
+                                for (uint8_t ii = 80; ii < 110; ii++){
+                                    bleKeyboard.write(ii);
+                                    delay(500);
+                                    bleKeyboard.print(String(ii));
+                                    delay(500);
+                                    logger(true, String(ii));
+                                }
+                            }else if(content == "del"){
                                 // Press Ctrl + A, and then backspace it
                                 bleKeyboard.press(get_gui_key());
-                                bleKeyboard.press(0x04);
-                                delay(100);
+                                bleKeyboard.press(KEY_A);
+                                delay(250);
                                 bleKeyboard.releaseAll();
                                 bleKeyboard.write(KEY_BACKSPACE);
                             } else if(content == "up"){
-                                // Goes to the chat above
-                                bleKeyboard.press(KEY_LEFT_ALT);
-                                bleKeyboard.press(KEY_UP_ARROW);
-                                delay(100);
+                                bleKeyboard.press(get_gui_key());
+                                bleKeyboard.press(KEY_L);
+                                delay(250);
                                 bleKeyboard.releaseAll();
+
+                                bleKeyboard.press(KEY_UP_ARROW);
+                                delay(250);
+                                bleKeyboard.releaseAll();
+                                // Goes to the chat above
+                                bleKeyboard.write(KEY_RETURN);
+
+                                
+                            } else if(content.startsWith("up")){
+
+                                try{
+                                    int count = content.substring(2).toInt();
+                                    count = count > 10 ? 10 : count;
+                                    bleKeyboard.press(get_gui_key());
+                                    bleKeyboard.press(KEY_L);
+                                    delay(250);
+                                    bleKeyboard.releaseAll();
+                                    for(int ii = 0; ii < count; ii++){
+                                        bleKeyboard.press(KEY_UP_ARROW);
+                                        delay(100);
+                                        bleKeyboard.releaseAll();
+                                    }
+                                    bleKeyboard.write(KEY_RETURN);
+                                      
+                                } catch (const std::exception& e) {
+                                    logger(true, "unable to parse number after up");
+                                }
+                                
                             } else if(content == "down"){
                                 // Goes to the chat below
-                                bleKeyboard.press(KEY_LEFT_ALT);
+                                bleKeyboard.press(get_gui_key());
+                                bleKeyboard.press(KEY_L);
+                                delay(100);
+                                bleKeyboard.releaseAll();
+
                                 bleKeyboard.press(KEY_DOWN_ARROW);
                                 delay(100);
                                 bleKeyboard.releaseAll();
+                                // Goes to the chat above
+                                bleKeyboard.write(KEY_RETURN);
+                            } else if(content.startsWith("down")){
+                                try{
+                                    int count = content.substring(2).toInt();
+                                    count = count > 10 ? 10 : count;
+                                    bleKeyboard.press(get_gui_key());
+                                    bleKeyboard.press(KEY_L);
+                                    delay(250);
+                                    bleKeyboard.releaseAll();
+                                    for(int ii = 0; ii < count; ii++){
+                                        bleKeyboard.press(KEY_DOWN_ARROW);
+                                        delay(100);
+                                        bleKeyboard.releaseAll();
+                                    }
+                                    bleKeyboard.write(KEY_RETURN);
+                                      
+                                } catch (const std::exception& e) {
+                                    logger(true, "unable to parse number after down");
+                                }
                             } else {
                                 //TODO: Split content out into bits of 5 and delay 100ms
                                 print_chunks(content);
@@ -221,6 +287,63 @@ void loop() {
 
     if(!bleKeyboard.isConnected()) {
         logger(true, "Keyboard is not connected");
+        btConnection = false;
+    } else if(bleKeyboard.isConnected() && !btConnection){
+        logger(true, "Keyboard is now connected");
+        btConnection = true;
     }
     delay(200);
+}
+
+/**
+ * @brief Function to store the commands I used for old teams, mainly navigation that got deprecated
+ * 
+ * @param content 
+ */
+void oldTeamsCommands(String content){
+    if(content == "up"){
+        // Goes to the chat above
+        bleKeyboard.press(KEY_LEFT_ALT);
+        bleKeyboard.press(KEY_UP_ARROW);
+        delay(100);
+        bleKeyboard.releaseAll();
+    } else if(content.startsWith("up")){
+
+        try{
+            int count = content.substring(2).toInt();
+            count = count > 10 ? 10 : count;
+            for(int ii = 0; ii < count; ii++){
+                bleKeyboard.press(KEY_LEFT_ALT);
+                bleKeyboard.press(KEY_UP_ARROW);
+                delay(100);
+                bleKeyboard.releaseAll();
+                delay(250);
+            }
+                
+        } catch (const std::exception& e) {
+            logger(true, "unable to parse number after up");
+        }
+        
+    } else if(content == "down"){
+        // Goes to the chat below
+        bleKeyboard.press(KEY_LEFT_ALT);
+        bleKeyboard.press(KEY_DOWN_ARROW);
+        delay(100);
+        bleKeyboard.releaseAll();
+    } else if(content.startsWith("down")){
+        try{
+            int count = content.substring(2).toInt();
+            count = count > 10 ? 10 : count;
+            for(int ii = 0; ii < count; ii++){
+                bleKeyboard.press(KEY_LEFT_ALT);
+                bleKeyboard.press(KEY_DOWN_ARROW);
+                delay(100);
+                bleKeyboard.releaseAll();
+                delay(250);
+            }
+                
+        } catch (const std::exception& e) {
+            logger(true, "unable to parse number after down");
+        }
+    }
 }
